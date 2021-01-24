@@ -9,9 +9,9 @@
 namespace SSDK {
   //-------------------------------------------------------------------------
   template <typename T>
-  bool setValue(T& value, const std::string& value) {
+  bool setValue(T& value, const std::string& param) {
     try {
-      std::stringstream ss(value);
+      std::stringstream ss(param);
       ss >> value;
     }
     catch (std::exception& error) {
@@ -50,7 +50,7 @@ namespace SSDK {
     if (res != std::string::npos) {
       auto type  = param.substr(0, res);
       auto value = param.substr(res + 1, param.length() - res - 1);
-      return std::make_tuple(true, type, value)
+      return std::make_tuple(true, type, value);
     }
     return std::make_tuple(false, "", "");
   }
@@ -94,7 +94,7 @@ namespace SSDK {
       file.close();
     }
     else {
-      std::cerr << "Can't open file \'" << filen_name << "\'.\n";
+      std::cerr << "Can't open file \'" << file_name << "\'.\n";
       result = false;
     }
     return result;

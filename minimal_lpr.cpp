@@ -14,6 +14,7 @@
 #include <vector>
 #include <limits>
 #include <memory>
+#include <iostream>
 
 
 template <typename T>
@@ -62,11 +63,11 @@ int initialize_sdk() {
 
 using TimeLine = std::vector<std::chrono::time_point<std::chrono::system_clock>>;
 //--------------------------------------------------------------------------
-SSDK::PCarTracker initTracker(const std::string& inputParams, SSDK::pipe<SSDK::CarTrackerEvent>& events, TimeLine& times) {
+std::pair<SSDK::PCarTracker, SSDK::CarTrackerParams> initTracker(const std::string& inputParams, SSDK::pipe<SSDK::CarTrackerEvent>& events, TimeLine& times) {
   SSDK::CarTrackerParams ct_params;
   ct_params.min_recognition_confidence =
     0.4; // minimal license plate recognition confidence should be >= 0.4
-  if (!SSDK::setParams(ct_params, input_params)) {
+  if (!SSDK::setParams(ct_params, inputParams)) {
     throw std::runtime_error("Can't set params for car tracker.");
   }
   // Constructing Car Tracker algorithm which does license plate detection,
@@ -78,7 +79,7 @@ SSDK::PCarTracker initTracker(const std::string& inputParams, SSDK::pipe<SSDK::C
       events.enqueue(e);
     },
     0);
-  return ct;
+  return std::make_pair(ct, ct_params);
 }
 
 //--------------------------------------------------------------------------
@@ -123,7 +124,7 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
       return EXIT_SUCCESS;
     }
     else {
-      std::cerr << "Can't open output file \'" << outFileName "\'.\n";
+      std::cerr << "Can't open output file \'" << outFileName << "\'.\n";
     }
   }
   catch (std::exception& error) {
@@ -202,7 +203,9 @@ int main(int argc, char **argv) try {
   // interface to access video frames externally read into memory
   auto camera = initCamera(frames_in_processing, whole_frames, skiped_frames);
   TimeLine times_per_cycle;
-  auto ct = initTracker(input_params, display_pipe, times_per_cycle);
+  auto trackerData = initTracker(input_params, display_pipe, times_per_cycle);
+  auto ct = trackerData.first;
+  auto ct_params = trackerData.second;
   ct->SetCamera(camera);
 
   // opening video file for reading
@@ -220,10 +223,10 @@ int main(int argc, char **argv) try {
   std::thread display_thread([&display_pipe]() {displayFunc(display_pipe); });
   cv::Mat frame;
   auto startTime = std::chrono::system_clock::now();
-  while (!stopped && vid->getNextFrame(frame)) {
+  while (vid->getNextFrame(frame)) {
     // handling overload situation. distabling this delay will make CarTracker
     // to ignore some frames
-    while (frames_in_processing > ct_params.thread_count && !stopped)
+    while (frames_in_processing > ct_params.thread_count)
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     ++frames_in_processing;
     while (!camera->FeedFrame(current_time, frame.data, frame.cols,
@@ -256,8 +259,8 @@ int main(int argc, char **argv) try {
   }
   outputData.skipedFrames = skiped_frames;
   outputData.wholeFrames = whole_frames;
-  if (saveStatistic(outputData) != EXIT_SUCCESS) {
-    throw std::exception("Can't save statistic data.");
+  if (saveStatistic(outputData, output_filename) != EXIT_SUCCESS) {
+    throw std::runtime_error("Can't save statistic data.");
   }
   std::cout << "Whole frames num = " << whole_frames
             << " , skiped frames = " << skiped_frames << std::endl;
