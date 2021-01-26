@@ -118,8 +118,8 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
     std::ofstream file(outFileName);
     if (file.is_open()) {
       file << "fps|" << data.fps<<std::endl;
-      file << "wholeFrames" << data.wholeFrames << std::endl;
-      file << "skipedFrames" << data.skipedFrames << std::endl;
+      file << "wholeFrames|" << data.wholeFrames << std::endl;
+      file << "skipedFrames|" << data.skipedFrames << std::endl;
       file.close();
       return EXIT_SUCCESS;
     }
@@ -148,11 +148,11 @@ public:
         m_fps = m_stream->get(cv::CAP_PROP_FPS);
         m_resolutionX = static_cast<unsigned>(m_stream->get(cv::CAP_PROP_FRAME_WIDTH));
         m_resolutionY = static_cast<unsigned>(m_stream->get(cv::CAP_PROP_FRAME_HEIGHT));
+        return true;
       }
     }
     catch (std::exception& error) {
       std::cerr << error.what() << std::endl;
-      return false;
     }
     return false;
   }
@@ -167,7 +167,9 @@ public:
   
   bool getNextFrame(cv::Mat& frame) const { return m_stream->read(frame); }
 
-  bool isCorrectVideo() const {
+  bool isCorrectVideo() {
+    if (!isOpen())
+        return false;
     return !isEqual(getFps(), 0.0f) && getResolutionX() != 0 && getResolutionY() != 0;
   }
 private:
@@ -210,8 +212,7 @@ int main(int argc, char **argv) try {
 
   // opening video file for reading
   auto vid = std::make_unique<VideoStream>(input_video_file_name);
-  if (!vid->isOpen() 
-    || !vid->isCorrectVideo()) {
+  if (!vid->isCorrectVideo()) {
     throw std::runtime_error("Can't open file " + input_video_file_name +
       " as video for reading");
   }
