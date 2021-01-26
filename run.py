@@ -65,20 +65,20 @@ def writeToFinalStatistic(file_name, input_data, result_data):
 	with open(file_name, "a") as file_object:
 		if emptyFile == True:
 			header = ""
-			for key in input_data:
+			for key in sorted(input_data.keys()):
 				header += str(key) + ";" 
-			for key in result_data:
+			for key in sorted(result_data.keys()):
 				header += str(key) + ";"
 			header = header.rstrip(";")
 			header += "\n"
 			file_object.write(header)
 		whole_str = ""
-		for key in input_data:
+		for key in sorted(input_data.keys()):
 			val = input_data[key]
 			if (type(val) == bool):
 				 val = int(val)
 			whole_str += str(val) + ";"
-		for key in result_data:
+		for key in sorted(result_data.keys()):
 			whole_str  += str(result_data[key]) + ";"
 		whole_str = whole_str.rstrip(";")
 		whole_str += "\n"
