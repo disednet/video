@@ -1,50 +1,119 @@
 import subprocess
 import multiprocessing
 import sys
+import os
 from random import randint
-#thread_num
-#use_gpu
-#plate_max_width
-#plate_min_width
+#thread_num 1..N
+#disable_gpu [0,1]
+#plate_max_width [min..preset_max]
+#plate_min_width [preset_min ..max]
+#region   TODO
+#screen resolution TODO
+
 num_threads = 8#multiprocessing.cpu_count()
 print("Start testing.\n")
 print("System has " + str(num_threads) + " threads.\n")
 
-def main(execName, videoName):
-	data = dict()
-	for i in range(1, num_threads+1):
-		data["thread_num"] = i#randint(1, num_threads)
-		setupDataFile = "setupData.txt"
-		outputDataFile = "outputFile.txt"
-		with open(setupDataFile, 'w') as file_object:
-			whole_str = "thread_num|" + str(data["thread_num"]) + "\n"
+#----------------------------------------------------
+def generateThread():
+	return randint(1, num_threads)
+
+#----------------------------------------------------
+def generateDisableGpu():
+	return bool(randint(0, 1))
+
+#----------------------------------------------------
+def generateMinPlate():
+	return randint(20, 40)
+
+#----------------------------------------------------
+def generateMaxPlate():
+	return randint(40, 200)
+
+
+#----------------------------------------------------
+def generateInputData():
+	result = dict()
+	result["thread_num"] = generateThread()
+	result["disable_gpu"] = generateDisableGpu()
+	result["plate_min_width"] = generateMinPlate()
+	result["plate_max_width"] = generateMaxPlate()
+	return result
+
+#----------------------------------------------------
+def writeSetupData(data, file_name):
+	with open(file_name, 'w') as file_object:
+		for key, value in data.items():
+			whole_str = str(key) + "|" + str(value) + "\n"
 			file_object.write(whole_str)
+
+#----------------------------------------------------
+def readOutputData(file_name):
+	outData = dict()
+	with open(file_name) as file_object:
+		lines = file_object.readlines()
+		for line in lines:
+			dt = line.rstrip().split("|")
+			print(dt[0]+ " = "  + dt[1])
+			outData[dt[0]] = dt[1]
+	return outData
+
+
+#----------------------------------------------------
+def writeToFinalStatistic(file_name, input_data, result_data):
+	emptyFile = os.stat(file_name).st_size == 0
+	with open(file_name, "a") as file_object:
+		if emptyFile == True:
+			header = ""
+			for key in input_data:
+				header += str(key) + ";" 
+			for key in result_data:
+				header += str(key) + ";"
+			header = header.rstrip(";")
+			header += "\n"
+			file_object.write(header)
+		whole_str = ""
+		for key in input_data:
+			val = input_data[key]
+			if (type(val) == bool):
+				 val = int(val)
+			whole_str += str(val) + ";"
+		for key in result_data:
+			whole_str  += str(result_data[key]) + ";"
+		whole_str = whole_str.rstrip(";")
+		whole_str += "\n"
+		file_object.write(whole_str)
+
+#----------------------------------------------------
+def main(execName, videoName, test_num, result_statistic_data):
+	data = dict()
+	setupDataFile = "setupData.txt"
+	outputDataFile = "outputFile.txt"
+	with open(result_statistic_data, "w") as file_object:
+		file_object.truncate(0)
+	for i in range(0, test_num):
+		data = generateInputData()
+		writeSetupData(data, setupDataFile)
 		process = subprocess.run([execName, videoName, setupDataFile, outputDataFile])
 		if process.returncode == 1:
 			print("something wrong...")
 			return 1
-		outData = dict()
-		with open(outputDataFile) as file_object:
-			lines = file_object.readlines()
-			for line in lines:
-				dt = line.rstrip().split("|")
-				print(dt[0]+ " = "  + dt[1])
-				outData[dt[0]] = dt[1]
-		with open("result.csv", "a") as file_object:
-			whole_str = str(data["thread_num"])# + ";" + str(fps) + "\n"
-			for key, value in outData.items():
-				whole_str  = whole_str + ";" + str(value)
-			whole_str += "\n"
-			file_object.write(whole_str)
-
+		result = readOutputData(outputDataFile)
+		writeToFinalStatistic(result_statistic_data, data, result)
 			
 
-
+#----------------------------------------------------
 if __name__ == '__main__':
-	if (len(sys.argv) < 2):
+	if (len(sys.argv) < 3):
 		print("Need define video file.")
 	else:
-		main(sys.argv[1], sys.argv[2])
+		result_file = "result.csv"
+		tests_num = 12
+		if len(sys.argv) >= 4:
+			tests_num = int(sys.argv[3])
+		if len(sys.argv) == 5:
+			result_file = sys.argv[4]
+		main(sys.argv[1], sys.argv[2], tests_num,  result_file)
 	
 
 
