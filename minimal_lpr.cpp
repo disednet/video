@@ -166,13 +166,16 @@ public:
   
   unsigned getResolutionY() const { return m_resolutionY; }
   
-  bool getNextFrame(cv::Mat& frame) const {
+  bool getNextFrame(cv::Mat& frame) {
       if (m_scale == 100)
         return m_stream->read(frame);
       else {
           auto resX = static_cast<unsigned>(static_cast<float>(m_resolutionX) * static_cast<float>(m_scale) / 100.0f);
           auto resY = static_cast<unsigned>(static_cast<float>(m_resolutionY) * static_cast<float>(m_scale) / 100.0f);
-          m_stream->read(m_tmpFrame);
+          auto result = m_stream->read(m_tmpFrame);
+          if (result)
+              cv::resize(m_tmpFrame, frame, {resX, resY}, 0 , 0, cv::INTER_CUBIC);
+          return result;
       }
   }
 
@@ -186,21 +189,22 @@ private:
   std::unique_ptr<cv::VideoCapture> m_stream;
   unsigned m_resolutionX{0};
   unsigned m_resolutionY{0};
-  unsigned m_scale{100}
+  unsigned m_scale{100};
   float m_fps{0.0f};
   cv::Mat m_tmpFrame;
 };
 
 
 int main(int argc, char **argv) try {
-  if (argc < 4) {
+  if (argc < 5) {
     std::cout << "Usage: minimal_lpr <video_file_name> <input_params> <output_file> <video scale>" << std::endl;
     return EXIT_FAILURE;
   }
   std::string input_video_file_name = argv[1];
-  std::string input_params = argv[2];
-  std::string output_filename = argv[3];
-  unsigned scale = std::stoul(argv[4]);
+  unsigned scale = std::stoul(argv[2]);
+  std::string input_params = argv[3];
+  std::string output_filename = argv[4];
+  
   // Camera can give an event when frame is released. This one tracks how many
   // frames are there inside SDK in processing
   std::atomic<unsigned> frames_in_processing{ 0 };
@@ -223,7 +227,7 @@ int main(int argc, char **argv) try {
   ct->SetCamera(camera);
 
   // opening video file for reading
-  auto vid = std::make_unique<VideoStream>(input_video_file_name);
+  auto vid = std::make_unique<VideoStream>(input_video_file_name, scale);
   if (!vid->isCorrectVideo()) {
     throw std::runtime_error("Can't open file " + input_video_file_name +
       " as video for reading");

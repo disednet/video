@@ -3,14 +3,15 @@ import multiprocessing
 import sys
 import os
 from random import randint
+from random import choice
 #thread_num 1..N
 #disable_gpu [0,1]
 #plate_max_width [min..preset_max]
 #plate_min_width [preset_min ..max]
 #region   TODO
-#screen resolution TODO
+#screen resolution
 
-num_threads = 8#multiprocessing.cpu_count()
+num_threads = multiprocessing.cpu_count()
 print("Start testing.\n")
 print("System has " + str(num_threads) + " threads.\n")
 
@@ -94,11 +95,13 @@ def main(execName, videoName, test_num, result_statistic_data):
 	for i in range(0, test_num):
 		data = generateInputData()
 		writeSetupData(data, setupDataFile)
-		process = subprocess.run([execName, videoName, setupDataFile, outputDataFile])
+		resolution = choice([25, 50, 75, 100])
+		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile])
 		if process.returncode == 1:
 			print("something wrong...")
 			return 1
 		result = readOutputData(outputDataFile)
+		data["resolution"] = resolution
 		writeToFinalStatistic(result_statistic_data, data, result)
 			
 
