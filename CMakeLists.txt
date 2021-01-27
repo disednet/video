@@ -19,5 +19,15 @@ pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
 add_executable(minimal_lpr minimal_lpr.cpp)
 target_link_libraries(minimal_lpr PRIVATE LPRSDK::lprsdk ${OpenCV_LIBS} Threads::Threads)
 target_include_directories(minimal_lpr PRIVATE ${OpenCV_INCLUDE_DIRS})
-install (FILES run.py  conf.json a390mo30.mp4 DESTINATION ${CMAKE_INSTALL_PREFIX})
-file(COPY run.py conf.json a390mo30.mp4 DESTINATION ${CMAKE_BINARY_DIR})
+install (FILES 
+run.py  
+conf.json 
+a309mo30.mp4
+correct.list
+ DESTINATION ${CMAKE_INSTALL_PREFIX})
+file(COPY 
+run.py 
+conf.json 
+a309mo30.mp4
+correct.list
+ DESTINATION ${CMAKE_BINARY_DIR})

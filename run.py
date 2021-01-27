@@ -4,6 +4,7 @@ import sys
 import os
 from random import randint
 from random import choice
+import json
 #thread_num 1..N
 #disable_gpu [0,1]
 #plate_max_width [min..preset_max]
@@ -21,7 +22,7 @@ def generateThread():
 
 #----------------------------------------------------
 def generateDisableGpu():
-	return bool(randint(0, 1))
+	return bool(choice([0, 1]))
 
 #----------------------------------------------------
 def generateMinPlate():
@@ -66,27 +67,27 @@ def writeToFinalStatistic(file_name, input_data, result_data):
 	with open(file_name, "a") as file_object:
 		if emptyFile == True:
 			header = ""
-			for key in sorted(input_data.keys()):
+			for key in input_data:
 				header += str(key) + ";" 
-			for key in sorted(result_data.keys()):
+			for key in result_data:
 				header += str(key) + ";"
 			header = header.rstrip(";")
 			header += "\n"
 			file_object.write(header)
 		whole_str = ""
-		for key in sorted(input_data.keys()):
+		for key in input_data:
 			val = input_data[key]
 			if (type(val) == bool):
 				 val = int(val)
 			whole_str += str(val) + ";"
-		for key in sorted(result_data.keys()):
+		for key in result_data:
 			whole_str  += str(result_data[key]) + ";"
 		whole_str = whole_str.rstrip(";")
 		whole_str += "\n"
 		file_object.write(whole_str)
 
 #----------------------------------------------------
-def main(execName, videoName, test_num, result_statistic_data):
+def main(execName, videoName, test_num, result_statistic_data, correct_plates):
 	data = dict()
 	setupDataFile = "setupData.txt"
 	outputDataFile = "outputFile.txt"
@@ -96,7 +97,7 @@ def main(execName, videoName, test_num, result_statistic_data):
 		data = generateInputData()
 		writeSetupData(data, setupDataFile)
 		resolution = choice([25, 50, 75, 100])
-		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile])
+		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile, correct_plates])
 		if process.returncode == 1:
 			print("something wrong...")
 			return 1
@@ -107,17 +108,11 @@ def main(execName, videoName, test_num, result_statistic_data):
 
 #----------------------------------------------------
 if __name__ == '__main__':
-	if (len(sys.argv) < 3):
-		print("Need define video file.")
-	else:
-		result_file = "result.csv"
-		tests_num = 12
-		if len(sys.argv) >= 4:
-			tests_num = int(sys.argv[3])
-		if len(sys.argv) == 5:
-			result_file = sys.argv[4]
-		main(sys.argv[1], sys.argv[2], tests_num,  result_file)
+	conf_file = "conf.json"
+	if (len(sys.argv)==3):
+		conf_file = sys.argv[2]
+	with open(conf_file) as file_object:
+		data = json.load(file_object)
+		main(data["app"], data["video"], data["test_num"], data["output_statistic_file"], data["correct_plates"])
 	
-
-
 print("Finish testing.\n")
