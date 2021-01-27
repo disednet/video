@@ -1,0 +1,6 @@
+{
+    "app": "./minimal_lpr",
+    "video":"a390mo30.mp4",
+    "test_num":12,
+    "outputStatisticFile" : "result.csv"
+}

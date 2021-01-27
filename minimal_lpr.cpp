@@ -4,6 +4,7 @@
 #include "parser.h"
 #include "ssdk/ssdk_lpr.h"
 #include "ssdk/ssdk_threads.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -15,7 +16,7 @@
 #include <limits>
 #include <memory>
 #include <iostream>
-
+#include <set>
 
 template <typename T>
 bool isEqual(T val, T est, T eps = std::numeric_limits<T>::epsilon()) {
@@ -26,6 +27,10 @@ struct StatisticData {
   double fps{ 0.0 };
   unsigned int wholeFrames{ 0 };
   unsigned int skipedFrames{ 0 };
+  double confidanceMed {0.0};
+  double confidanceDisp {0.0};
+  double errorMed{0.0};
+  double errorDisp{0.0};
 };
 
 //-------------------------------------------------------------------------------
@@ -101,13 +106,20 @@ SSDK::PPassiveCamera initCamera(std::atomic<unsigned>& frames_in_processing,
 }
 
 //--------------------------------------------------------------------------
-void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events) {
+void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events, std::vector<std::set<std::string>>& plates,
+                 std::vector<double>& confidance) {
   SSDK::CarTrackerEvent item;
   while (events.dequeue(item)) {
-    cv::Mat mat = item.image->GetBGRMat();
+    std::set<std::string> platesNum;
     for (const SSDK::CarTrackerObject& o : item.objects) {
       std::cout << "Car found:" << o.plate->GetText() << std::endl;
+      auto itemConfidance = o.plate->GetSymbolConfidences();
+      itemConfidance.push_back(o.plate->GetRecognitionConfidence());
+      std::sort(itemConfidance.begin(), itemConfidance.end());
+      confidance.push_back(itemConfidance[itemConfidance.size()/2]);
+      platesNum.insert(o.plate->GetText());
     }
+    plates.push_back(platesNum);
     item.image.reset();
   }
 }
@@ -120,6 +132,10 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
       file << "fps|" << data.fps<<std::endl;
       file << "wholeFrames|" << data.wholeFrames << std::endl;
       file << "skipedFrames|" << data.skipedFrames << std::endl;
+      file << "confidancesMed|" << data.confidanceMed << std::endl;
+      file << "confidancesDisp|" << data.confidanceDisp << std::endl;
+      file << "errorMed|" << data.errorMed << std::endl;
+      file << "errorDisp|" << data.errorDisp << std::endl;
       file.close();
       return EXIT_SUCCESS;
     }
@@ -194,23 +210,54 @@ private:
   cv::Mat m_tmpFrame;
 };
 
+std::set<std::string> getCorrectPlates(const std::string& file_name){
+  std::set<std::string> result;
+  std::ifstream file(file_name);
+  if (file.is_open()) {
+    std::string line;
+    while (std::getline(file, line)) {
+      result.insert(line);
+    }
+  }
+  return result;
+}
+
+std::pair<double, double> getMidAndDisp(const std::vector<double>& data){
+  if (!data.empty()) {
+    double m = 0.0;
+    for (auto el : data)
+      m += el;
+    m /= static_cast<double>(data.size());
+    double d = 0.0;
+    for (auto el : data)
+      d += (el - m)*(el - m);
+    d /= static_cast<double>(data.size());
+    return std::make_pair(m, d);
+  }
+  return std::make_pair(0.0, 0.0);
+}
 
 int main(int argc, char **argv) try {
-  if (argc < 5) {
-    std::cout << "Usage: minimal_lpr <video_file_name> <input_params> <output_file> <video scale>" << std::endl;
+  if (argc < 6) {
+    std::cout << "Usage: minimal_lpr <video_file_name> <input_params> <output_file> <video scale> <file_with_correct_plates>" << std::endl;
     return EXIT_FAILURE;
   }
   std::string input_video_file_name = argv[1];
   unsigned scale = std::stoul(argv[2]);
   std::string input_params = argv[3];
   std::string output_filename = argv[4];
+  std::string correct_plates_file = argv[5];
   
   // Camera can give an event when frame is released. This one tracks how many
   // frames are there inside SDK in processing
   std::atomic<unsigned> frames_in_processing{ 0 };
   std::atomic<unsigned> skiped_frames{ 0 };
   std::atomic<unsigned> whole_frames{ 0 };
-
+  auto correctPlates = getCorrectPlates(correct_plates_file);
+  if (correctPlates.empty()){
+    std::cerr << "Can't find data with correct car plates in \'" << correct_plates_file << "\'\n";
+    return EXIT_FAILURE;
+  }
   std::cout << "Starting minimal LPR example with video file name "
             << input_video_file_name << std::endl;
   if (initialize_sdk() != EXIT_SUCCESS) {
@@ -237,7 +284,9 @@ int main(int argc, char **argv) try {
   SSDK::timestamp_type current_time = 0;
   SSDK::timestamp_type frame_interval = SSDK::msec(1000.0f / vid->getFps());
 // potential cycle for tests----------------------------
-  std::thread display_thread([&display_pipe]() {displayFunc(display_pipe); });
+  std::vector<std::set<std::string>> platesNum;
+  std::vector<double> confidances;
+  std::thread display_thread([&display_pipe, &confidances, &platesNum]() {displayFunc(display_pipe, platesNum, confidances); });
   cv::Mat frame;
   auto startTime = std::chrono::system_clock::now();
   while (vid->getNextFrame(frame)) {
@@ -276,6 +325,26 @@ int main(int argc, char **argv) try {
   }
   outputData.skipedFrames = skiped_frames;
   outputData.wholeFrames = whole_frames;
+  auto confStat = getMidAndDisp(confidances);
+  outputData.confidanceMed = confStat.first;
+  outputData.confidanceDisp = confStat.second;
+  std::vector<double> error;
+  for (const auto& platesSet : platesNum) {
+    double val = 0.0;
+    for (const auto& plate : platesSet ) {
+      if (correctPlates.count(plate) == 0){
+        val += 1.0;
+      }
+    }
+    if (!platesSet.empty()) {
+      val /= static_cast<double>(platesSet.size());
+      error.push_back(val);
+    }
+  }
+  auto errorStat = getMidAndDisp(error);
+  outputData.errorMed = errorStat.first;
+  outputData.errorDisp = errorStat.second;
+
   if (saveStatistic(outputData, output_filename) != EXIT_SUCCESS) {
     throw std::runtime_error("Can't save statistic data.");
   }
