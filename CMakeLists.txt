@@ -23,11 +23,15 @@ install (FILES
 run.py  
 conf.json 
 a309mo30.mp4
+test.mp4
 correct.list
+correct2.list
  DESTINATION ${CMAKE_INSTALL_PREFIX})
 file(COPY 
 run.py 
 conf.json 
 a309mo30.mp4
+test.mp4
 correct.list
+correct2.list
  DESTINATION ${CMAKE_BINARY_DIR})

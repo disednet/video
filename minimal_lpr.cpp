@@ -106,20 +106,18 @@ SSDK::PPassiveCamera initCamera(std::atomic<unsigned>& frames_in_processing,
 }
 
 //--------------------------------------------------------------------------
-void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events, std::vector<std::set<std::string>>& plates,
+void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events, std::set<std::string>& plates,
                  std::vector<double>& confidance) {
   SSDK::CarTrackerEvent item;
   while (events.dequeue(item)) {
-    std::set<std::string> platesNum;
-    for (const SSDK::CarTrackerObject& o : item.objects) {
+    for (const SSDK::CarTrackerObject& o : item.recognized_objects/*objects*/) {
       std::cout << "Car found:" << o.plate->GetText() << std::endl;
       auto itemConfidance = o.plate->GetSymbolConfidences();
       itemConfidance.push_back(o.plate->GetRecognitionConfidence());
       std::sort(itemConfidance.begin(), itemConfidance.end());
       confidance.push_back(itemConfidance[itemConfidance.size()/2]);
-      platesNum.insert(o.plate->GetText());
+      plates.insert(o.plate->GetText());
     }
-    plates.push_back(platesNum);
     item.image.reset();
   }
 }
@@ -131,11 +129,8 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
     if (file.is_open()) {
       file << "fps|" << data.fps<<std::endl;
       file << "wholeFrames|" << data.wholeFrames << std::endl;
-      file << "skipedFrames|" << data.skipedFrames << std::endl;
-      file << "confidancesMed|" << data.confidanceMed << std::endl;
-      file << "confidancesDisp|" << data.confidanceDisp << std::endl;
-      file << "errorMed|" << data.errorMed << std::endl;
-      file << "errorDisp|" << data.errorDisp << std::endl;
+      file << "confidances|" << data.confidanceMed << std::endl;
+      file << "error|" << data.errorMed << std::endl;
       file.close();
       return EXIT_SUCCESS;
     }
@@ -183,16 +178,23 @@ public:
   unsigned getResolutionY() const { return m_resolutionY; }
   
   bool getNextFrame(cv::Mat& frame) {
-      if (m_scale == 100)
-        return m_stream->read(frame);
-      else {
-          auto resX = static_cast<unsigned>(static_cast<float>(m_resolutionX) * static_cast<float>(m_scale) / 100.0f);
-          auto resY = static_cast<unsigned>(static_cast<float>(m_resolutionY) * static_cast<float>(m_scale) / 100.0f);
-          auto result = m_stream->read(m_tmpFrame);
-          if (result)
-              cv::resize(m_tmpFrame, frame, {resX, resY}, 0 , 0, cv::INTER_CUBIC);
-          return result;
-      }
+    //static int index = 0;
+    if (m_scale == 100) {
+      auto res = m_stream->read(frame);
+      /*auto number = std::to_string(index++);
+      number.insert(0, 5-number.length(), '0');
+      std::string name = "pic" + number + ".jpg";
+      cv::imwrite(name, frame);*/
+      return res;
+    }
+    else {
+        auto resX = static_cast<unsigned>(static_cast<float>(m_resolutionX) * static_cast<float>(m_scale) / 100.0f);
+        auto resY = static_cast<unsigned>(static_cast<float>(m_resolutionY) * static_cast<float>(m_scale) / 100.0f);
+        auto result = m_stream->read(m_tmpFrame);
+        if (result)
+            cv::resize(m_tmpFrame, frame, {resX, resY}, 0 , 0, cv::INTER_CUBIC);
+        return result;
+    }
   }
 
   bool isCorrectVideo() {
@@ -216,6 +218,10 @@ std::set<std::string> getCorrectPlates(const std::string& file_name){
   if (file.is_open()) {
     std::string line;
     while (std::getline(file, line)) {
+      auto pos = line.rfind("\r");
+      if (pos != std::string::npos) {
+        line.replace(pos, 1, "");
+      }
       result.insert(line);
     }
   }
@@ -284,7 +290,7 @@ int main(int argc, char **argv) try {
   SSDK::timestamp_type current_time = 0;
   SSDK::timestamp_type frame_interval = SSDK::msec(1000.0f / vid->getFps());
 // potential cycle for tests----------------------------
-  std::vector<std::set<std::string>> platesNum;
+  std::set<std::string> platesNum;
   std::vector<double> confidances;
   std::thread display_thread([&display_pipe, &confidances, &platesNum]() {displayFunc(display_pipe, platesNum, confidances); });
   cv::Mat frame;
@@ -329,22 +335,16 @@ int main(int argc, char **argv) try {
   outputData.confidanceMed = confStat.first;
   outputData.confidanceDisp = confStat.second;
   std::vector<double> error;
-  for (const auto& platesSet : platesNum) {
-    double val = 0.0;
-    for (const auto& plate : platesSet ) {
-      if (correctPlates.count(plate) == 0){
-        val += 1.0;
-      }
-    }
-    if (!platesSet.empty()) {
-      val /= static_cast<double>(platesSet.size());
-      error.push_back(val);
+  double errorVal = 0.0;
+  for (const auto& plate : platesNum) {
+    if (correctPlates.count(plate) == 0){
+      errorVal += 1.0;
     }
   }
-  auto errorStat = getMidAndDisp(error);
-  outputData.errorMed = errorStat.first;
-  outputData.errorDisp = errorStat.second;
-
+  if (!platesNum.empty()) {
+    errorVal /= static_cast<double>(platesNum.size());
+  }
+  outputData.errorMed = errorVal;
   if (saveStatistic(outputData, output_filename) != EXIT_SUCCESS) {
     throw std::runtime_error("Can't save statistic data.");
   }

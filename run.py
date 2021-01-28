@@ -26,11 +26,11 @@ def generateDisableGpu():
 
 #----------------------------------------------------
 def generateMinPlate():
-	return randint(20, 40)
+  return randint(20, 80)
 
 #----------------------------------------------------
 def generateMaxPlate():
-	return randint(40, 200)
+  return randint(100, 250)
 
 
 #----------------------------------------------------
