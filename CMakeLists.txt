@@ -22,14 +22,17 @@ target_include_directories(minimal_lpr PRIVATE ${OpenCV_INCLUDE_DIRS})
 install (FILES 
 run.py  
 conf.json 
+conf2.json 
 a309mo30.mp4
 test.mp4
 correct.list
 correct2.list
  DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 file(COPY 
 run.py 
 conf.json 
+conf2.json 
 a309mo30.mp4
 test.mp4
 correct.list

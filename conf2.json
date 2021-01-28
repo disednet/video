@@ -1,0 +1,7 @@
+{
+    "app": "./minimal_lpr",
+    "video":"test.mp4",
+    "test_num":300,
+    "output_statistic_file" : "resultBig.csv",
+    "correct_plates" : "correct2.list"
+}
