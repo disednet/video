@@ -12,7 +12,7 @@ import json
 #region   TODO
 #screen resolution
 
-num_threads = multiprocessing.cpu_count()
+num_threads = 8#multiprocessing.cpu_count()
 print("Start testing.\n")
 print("System has " + str(num_threads) + " threads.\n")
 
@@ -22,7 +22,7 @@ def generateThread():
 
 #----------------------------------------------------
 def generateDisableGpu():
-	return bool(choice([0, 1]))
+  return (choice([0, 1]))
 
 #----------------------------------------------------
 def generateMinPlate():
@@ -116,8 +116,8 @@ def main(execName, videoName, test_num, result_statistic_data, correct_plates):
 		data = generateInputData()
 		writeSetupData(data, setupDataFile)
 		resolution = choice([25, 50, 75, 100])
-		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile, correct_plates], capture_output=True, text=True)
-		writeToLogs(process.stderr, process.stdout)
+		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile, correct_plates], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)#capture_output=True, text=True)
+		#writeToLogs(process.stderr, process.stdout)
 		if process.returncode == 1:
 			print("something wrong...\n")
 			return 1

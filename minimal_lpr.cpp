@@ -25,10 +25,14 @@ bool isEqual(T val, T est, T eps = std::numeric_limits<T>::epsilon()) {
 
 struct StatisticData {
   double fps{ 0.0 };
+  double wholeTime{0.0};
+  double fpsPerWholeTime{0.0};
   unsigned int wholeFrames{ 0 };
   unsigned int skipedFrames{ 0 };
   double confidanceMed {0.0};
   double confidanceDisp {0.0};
+  double confidanceMed2 {0.0};
+  double confidanceDisp2 {0.0};
   double errorMed{0.0};
   double errorDisp{0.0};
 };
@@ -107,7 +111,7 @@ SSDK::PPassiveCamera initCamera(std::atomic<unsigned>& frames_in_processing,
 
 //--------------------------------------------------------------------------
 void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events, std::set<std::string>& plates,
-                 std::vector<double>& confidance) {
+                 std::vector<double>& confidance, std::vector<double>& confidance2) {
   SSDK::CarTrackerEvent item;
   while (events.dequeue(item)) {
     for (const SSDK::CarTrackerObject& o : item.recognized_objects/*objects*/) {
@@ -117,6 +121,12 @@ void displayFunc(SSDK::pipe<SSDK::CarTrackerEvent>& events, std::set<std::string
       std::sort(itemConfidance.begin(), itemConfidance.end());
       confidance.push_back(itemConfidance[itemConfidance.size()/2]);
       plates.insert(o.plate->GetText());
+    }
+    for (const SSDK::CarTrackerObject& o : item.objects) {
+      auto itemConfidance = o.plate->GetSymbolConfidences();
+      itemConfidance.push_back(o.plate->GetRecognitionConfidence());
+      std::sort(itemConfidance.begin(), itemConfidance.end());
+      confidance2.push_back(itemConfidance[itemConfidance.size()/2]);
     }
     item.image.reset();
   }
@@ -128,9 +138,13 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
     std::ofstream file(outFileName);
     if (file.is_open()) {
       file << "fps|" << data.fps<<std::endl;
+      file << "wholeTime|" << data.wholeTime << std::endl;
+      file << "fpsPerWholeTime|" << data.fpsPerWholeTime << std::endl;
       file << "wholeFrames|" << data.wholeFrames << std::endl;
       file << "confidancesMid|" << data.confidanceMed << std::endl;
       file << "confidancesDisp|" << data.confidanceDisp << std::endl;
+      file << "confidancesMid2|" << data.confidanceMed2 << std::endl;
+      file << "confidancesDisp2|" << data.confidanceDisp2 << std::endl;
       file << "error|" << data.errorMed << std::endl;
       file.close();
       return EXIT_SUCCESS;
@@ -287,7 +301,8 @@ int main(int argc, char **argv) try {
 // potential cycle for tests----------------------------
   std::set<std::string> platesNum;
   std::vector<double> confidances;
-  std::thread display_thread([&display_pipe, &confidances, &platesNum]() {displayFunc(display_pipe, platesNum, confidances); });
+  std::vector<double> confidances2;
+  std::thread display_thread([&display_pipe, &confidances, &confidances2, &platesNum]() {displayFunc(display_pipe, platesNum, confidances, confidances2); });
   cv::Mat frame;
   auto startTime = std::chrono::system_clock::now();
   while (vid->getNextFrame(frame)) {
@@ -327,8 +342,15 @@ int main(int argc, char **argv) try {
   outputData.skipedFrames = skiped_frames;
   outputData.wholeFrames = whole_frames;
   auto confStat = getMidAndDisp(confidances);
+  auto confStat2 = getMidAndDisp(confidances2);
   outputData.confidanceMed = confStat.first;
   outputData.confidanceDisp = confStat.second;
+  outputData.confidanceMed2 = confStat2.first;
+  outputData.confidanceDisp2 = confStat2.second;
+
+  outputData.wholeTime = static_cast<double>(calcTime.count()) / 1000.0;
+  if (!isEqual(outputData.wholeTime, 0.0))
+    outputData.fpsPerWholeTime = static_cast<double>(whole_frames) / outputData.wholeTime;
   std::vector<double> error;
   double errorVal = 0.0;
   for (const auto& plate : platesNum) {
@@ -338,7 +360,8 @@ int main(int argc, char **argv) try {
   }
   if (!platesNum.empty()) {
     errorVal /= static_cast<double>(platesNum.size());
-  }
+  } else
+    errorVal = 1.0;
   outputData.errorMed = errorVal;
   if (saveStatistic(outputData, output_filename) != EXIT_SUCCESS) {
     throw std::runtime_error("Can't save statistic data.");
