@@ -1,7 +1,7 @@
 {
     "app": "./minimal_lpr",
     "video":"a309mo30.mp4",
-    "test_num":500,
+    "test_num":10,
     "output_statistic_file" : "result.csv",
     "correct_plates" : "correct.list"
 }

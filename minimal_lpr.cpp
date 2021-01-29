@@ -129,7 +129,8 @@ int saveStatistic(const StatisticData& data, const std::string& outFileName) {
     if (file.is_open()) {
       file << "fps|" << data.fps<<std::endl;
       file << "wholeFrames|" << data.wholeFrames << std::endl;
-      file << "confidances|" << data.confidanceMed << std::endl;
+      file << "confidancesMid|" << data.confidanceMed << std::endl;
+      file << "confidancesDisp|" << data.confidanceDisp << std::endl;
       file << "error|" << data.errorMed << std::endl;
       file.close();
       return EXIT_SUCCESS;
@@ -178,14 +179,8 @@ public:
   unsigned getResolutionY() const { return m_resolutionY; }
   
   bool getNextFrame(cv::Mat& frame) {
-    //static int index = 0;
     if (m_scale == 100) {
-      auto res = m_stream->read(frame);
-      /*auto number = std::to_string(index++);
-      number.insert(0, 5-number.length(), '0');
-      std::string name = "pic" + number + ".jpg";
-      cv::imwrite(name, frame);*/
-      return res;
+      return m_stream->read(frame);
     }
     else {
         auto resX = static_cast<unsigned>(static_cast<float>(m_resolutionX) * static_cast<float>(m_scale) / 100.0f);

@@ -56,7 +56,6 @@ def readOutputData(file_name):
 		lines = file_object.readlines()
 		for line in lines:
 			dt = line.rstrip().split("|")
-			print(dt[0]+ " = "  + dt[1])
 			outData[dt[0]] = dt[1]
 	return outData
 
@@ -87,23 +86,47 @@ def writeToFinalStatistic(file_name, input_data, result_data):
 		file_object.write(whole_str)
 
 #----------------------------------------------------
+def showProgress(current, maxValue):
+	current_progress = int(100.0*float(current)/float(maxValue))
+	progress = "["
+	for prInd in range(1,51):
+		if prInd < current_progress/2:
+			progress += "-"
+		else:
+			progress += " "
+	progress+= "]"
+	progress+= " " + str(current_progress) + "%\r"
+	print(progress, end="", flush=True)
+
+#----------------------------------------------------
+def writeToLogs(errors, messages):
+	with open("errors.log", "a") as log_file:
+		log_file.write(errors)
+	with open("messages.log", "a") as log_file:
+		log_file.write(messages)
+
+#----------------------------------------------------
 def main(execName, videoName, test_num, result_statistic_data, correct_plates):
 	data = dict()
 	setupDataFile = "setupData.txt"
 	outputDataFile = "outputFile.txt"
 	with open(result_statistic_data, "w") as file_object:
 		file_object.truncate(0)
-	for i in range(0, test_num):
+	for i in range(1, test_num+1):
 		data = generateInputData()
 		writeSetupData(data, setupDataFile)
 		resolution = choice([25, 50, 75, 100])
-		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile, correct_plates])
+		process = subprocess.run([execName, videoName, str(resolution), setupDataFile, outputDataFile, correct_plates], capture_output=True, text=True)
+		writeToLogs(process.stderr, process.stdout)
 		if process.returncode == 1:
-			print("something wrong...")
+			print("something wrong...\n")
 			return 1
 		result = readOutputData(outputDataFile)
 		data["resolution"] = resolution
 		writeToFinalStatistic(result_statistic_data, data, result)
+		showProgress(i, test_num)
+	print("\n")
+
 			
 
 #----------------------------------------------------
